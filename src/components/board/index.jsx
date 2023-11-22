@@ -1,9 +1,14 @@
 import { useEffect, useRef, useLayoutEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { MENU_ITEMS } from "../../constants";
+import { actionItemClick } from "../../slice/menuSlice";
 
 const Board = () => {
-  const activemenuItem = useSelector((state) => state.menu.activeMenuItem);
-  const { color, size } = useSelector((state) => state.toolbar[activemenuItem]);
+  const { activeMenuItem, actionMenuItem } = useSelector((state) => state.menu);
+  const { color, size } = useSelector((state) => state.toolbar[activeMenuItem]);
+  const dispatch = useDispatch();
+  const drawHistory = useRef([]);
+  const historyPointer = useRef(0);
   const canvasRef = useRef(null);
   const shouldDraw = useRef(false);
 
@@ -35,8 +40,11 @@ const Board = () => {
       drawLine(e.clientX, e.clientY);
     };
 
-    const handleMouseUp = (e) => {
+    const handleMouseUp = () => {
       shouldDraw.current = false;
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      drawHistory.current.push(imageData);
+      historyPointer.current = drawHistory.current.length - 1;
     };
 
     canvas.addEventListener("mousedown", handleMouseDown);
@@ -54,8 +62,7 @@ const Board = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
-
-    console.log(context);
+    context.fillStyle = "white";
 
     const changeConfig = () => {
       context.strokeStyle = color;
@@ -65,7 +72,33 @@ const Board = () => {
     changeConfig();
   }, [color, size]);
 
-  console.log(color, size);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+
+    if (actionMenuItem === MENU_ITEMS.DOWNLOAD) {
+      const URL = canvas.toDataURL();
+      const anchor = document.createElement("a");
+      anchor.href = URL;
+      anchor.download = "sketch.jpg";
+      anchor.click();
+    } else if (
+      actionMenuItem === MENU_ITEMS.UNDO ||
+      actionMenuItem === MENU_ITEMS.REDO
+    ) {
+      if (historyPointer.current > 0 && actionMenuItem === MENU_ITEMS.UNDO)
+        historyPointer.current -= 1;
+      if (
+        historyPointer.current < drawHistory.current.length - 1 &&
+        actionMenuItem === MENU_ITEMS.REDO
+      )
+        historyPointer.current += 1;
+      const imageData = drawHistory.current[historyPointer.current];
+      context.putImageData(imageData, 0, 0);
+    }
+    dispatch(actionItemClick(null));
+  }, [actionMenuItem, dispatch]);
 
   return <canvas ref={canvasRef}></canvas>;
 };
